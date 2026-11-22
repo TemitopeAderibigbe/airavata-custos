@@ -39,11 +39,16 @@ user --(Keycloak token)--> gateway :8090 --checks--> signature, issuer, expiry, 
 
    ```
    docker build -t custos-dimenet-gateway .
-   docker run -d --name dimenet-gateway --network compose_default -p 127.0.0.1:8090:8090 -v dimenet-data:/data custos-dimenet-gateway
+   docker run -d --name dimenet-gateway --network compose_default -p 127.0.0.1:8090:8090 -v dimenet-data:/data -e CUSTOS_ISSUER=http://keycloak:8080/realms/custos custos-dimenet-gateway
    docker logs -f dimenet-gateway
    ```
 
-   Wait for `model loaded in ...`. Check with `curl http://localhost:8090/health`.
+   Wait for `model loaded in ...` (about 20 s once QM9 and the checkpoint are cached).
+
+   `CUSTOS_ISSUER` must match the `iss` claim in the tokens. `run_experiments.py` gets tokens from
+   inside Docker (`http://keycloak:8080`), so Keycloak stamps that address as the issuer. Tokens
+   requested from the host through `http://localhost:8081` carry `http://localhost:8081/realms/custos`
+   instead, which is the default.
 
 3. **Run the experiments:**
 
@@ -65,6 +70,17 @@ user --(Keycloak token)--> gateway :8090 --checks--> signature, issuer, expiry, 
 | `GATEWAY_CLIENT_ID` | `dimenet-gateway` | Required `azp` claim |
 | `REQUIRED_ROLE` | `dimenet-user` | Realm role needed to run inference |
 | `DATA_DIR` | `/data` | QM9, checkpoint cache, audit log |
+
+## Dependency notes
+
+PyG does not install these automatically. Each was found by a failed run. TensorFlow is also
+required, because `from_qm9_pretrained` converts the original TensorFlow DimeNet++ checkpoint.
+
+| Symptom | Cause | Fix in Dockerfile |
+| --- | --- | --- |
+| `AttributeError: module 'numpy' has no attribute 'math'` | PyG 2.6.1 `dimenet_utils.py` uses `np.math`, removed in NumPy 2 | `numpy==1.26.4` |
+| `ImportError: 'SparseTensor' requires 'torch-sparse'` | DimeNet++ builds bond-angle triplets with `SparseTensor` | `torch-sparse==0.6.18` |
+| `ModuleNotFoundError: No module named 'torch_scatter'` | `torch_sparse` imports `torch_scatter` | `torch-scatter==2.1.2` |
 
 ## Known limitations
 

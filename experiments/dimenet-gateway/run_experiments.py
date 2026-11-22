@@ -24,7 +24,7 @@ def token(user):
 
 def call(label, headers, index=0):
     r = requests.post(GW, json={"index": index}, headers=headers, timeout=120)
-    body = r.json()
+    body = r.json() if r.headers.get("content-type", "").startswith("application/json") else r.text
     print(f"{label:<34} HTTP {r.status_code}  {json.dumps(body)}")
     return r.status_code, body
 
